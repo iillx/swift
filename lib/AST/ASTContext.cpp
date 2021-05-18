@@ -5087,6 +5087,8 @@ VarDecl *VarDecl::getOriginalWrappedProperty(
     return original;
 
   auto wrapperInfo = original->getPropertyWrapperAuxiliaryVariables();
+    
+    // 🦆 what is going on here, what is `this` in this scope?
   switch (*kind) {
   case PropertyWrapperSynthesizedPropertyKind::Backing:
     return this == wrapperInfo.backingVar ? original : nullptr;

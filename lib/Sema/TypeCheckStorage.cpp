@@ -77,6 +77,7 @@ Expr *TypeChecker::buildDefaultInitializer(Type type) {
   return nullptr;
 }
 
+//  🦆 how do I identify what is the context that will be passed to each of these methods that have contexts?
 /// Does the context allow pattern bindings that don't bind any variables?
 static bool contextAllowsPatternBindingWithoutVariables(DeclContext *dc) {
   
@@ -100,19 +101,21 @@ static bool hasStoredProperties(NominalTypeDecl *decl) {
   return (isa<StructDecl>(decl) ||
           (isa<ClassDecl>(decl) && !decl->hasClangNode()));
 }
+// 🦆 what is a clang node? why does it interfere with deciding if its a struct/class
 
+// 🦆 why "lowered"? is it because they're computed last?
 static void computeLoweredStoredProperties(NominalTypeDecl *decl) {
   // Just walk over the members of the type, forcing backing storage
   // for lazy properties and property wrappers to be synthesized.
   for (auto *member : decl->getMembers()) {
-    auto *var = dyn_cast<VarDecl>(member);
+    auto *var = dyn_cast<VarDecl>(member); // 🦆 dyn_cast? is it just a normal cast?
     if (!var || var->isStatic())
       continue;
 
     if (var->getAttrs().hasAttribute<LazyAttr>())
       (void) var->getLazyStorageProperty();
 
-    if (var->hasAttachedPropertyWrapper()) {
+    if (var->hasAttachedPropertyWrapper()) { // 🦆 here 
       (void) var->getPropertyWrapperAuxiliaryVariables();
       (void) var->getPropertyWrapperInitializerInfo();
     }
@@ -134,7 +137,7 @@ static void computeLoweredStoredProperties(NominalTypeDecl *decl) {
   }
 }
 
-ArrayRef<VarDecl *>
+ArrayRef<VarDecl *> // 🦆 ?? what does it mean?
 StoredPropertiesRequest::evaluate(Evaluator &evaluator,
                                   NominalTypeDecl *decl) const {
   if (!hasStoredProperties(decl))
@@ -156,6 +159,9 @@ StoredPropertiesRequest::evaluate(Evaluator &evaluator,
 
   return decl->getASTContext().AllocateCopy(results);
 }
+
+// 🦆 ok so I've read in the documentation that the evaluator was supposed to cache results instead of mutating the AST context.
+// is the copy above returned to the evaluator?
 
 ArrayRef<Decl *>
 StoredPropertiesAndMissingMembersRequest::evaluate(Evaluator &evaluator,
@@ -184,7 +190,7 @@ StoredPropertiesAndMissingMembersRequest::evaluate(Evaluator &evaluator,
 }
 
 /// Validate the \c entryNumber'th entry in \c binding.
-const PatternBindingEntry *
+const PatternBindingEntry * //🦆 what does pattern binding mean?
 PatternBindingEntryRequest::evaluate(Evaluator &eval,
                                      PatternBindingDecl *binding,
                                      unsigned entryNumber) const {
@@ -245,7 +251,7 @@ PatternBindingEntryRequest::evaluate(Evaluator &eval,
   // If the pattern contains some form of unresolved type, we'll need to
   // check the initializer.
   if (patternType->hasUnresolvedType() ||
-      patternType->hasUnboundGenericType()) {
+      patternType->hasUnboundGenericType()) { // 🦆 woah I actually understood this part!
     if (TypeChecker::typeCheckPatternBinding(binding, entryNumber,
                                              patternType)) {
       binding->setInvalid();
@@ -498,7 +504,7 @@ static GenericParamList *createAccessorGenericParams(
                                               AbstractStorageDecl *storage) {
   // Accessors of generic subscripts get a copy of the subscript's
   // generic parameter list, because they're not nested inside the
-  // subscript.
+  // subscript. // 🦆 you mean nested in terms of AST/context? they're solved independently?
   if (auto *subscript = dyn_cast<SubscriptDecl>(storage)) {
     if (auto genericParams = subscript->getGenericParams())
       return genericParams->clone(subscript->getDeclContext());
@@ -560,7 +566,8 @@ namespace {
     Wrapper,
     /// We're referencing the backing property for a property with a wrapper
     /// through the 'projectedValue' property.
-    WrapperStorage,
+    WrapperStorage, // 🦆 is this comment assuming that projectedValues are most commonly used for exposing the wrapper itself?
+      // 🦆 does it change anything if the projected value exposes something else?
   };
 } // end anonymous namespace
 
@@ -591,7 +598,7 @@ getEnclosingSelfPropertyWrapperAccess(VarDecl *property, bool forProjected) {
   Type outermostWrapperType = property->getPropertyWrapperBackingPropertyType();
   if (!outermostWrapperType)
     return None;
-  NominalTypeDecl *wrapperTypeDecl = outermostWrapperType->getAnyNominal();
+  NominalTypeDecl *wrapperTypeDecl = outermostWrapperType->getAnyNominal(); // 🦆 the nominal type of property wrapper would be the Wrapper type itself?
   if (!wrapperTypeDecl)
     return None;
 
@@ -620,7 +627,7 @@ getPropertyWrapperLValueness(VarDecl *var) {
   auto &ctx = var->getASTContext();
   return evaluateOrDefault(
       ctx.evaluator,
-      PropertyWrapperLValuenessRequest{var},
+      PropertyWrapperLValuenessRequest{var}, // 🦆is this requesting the wrapper backing storage in memory location? 
       None);
 }
 
@@ -742,7 +749,7 @@ static Expr *buildStorageReference(AccessorDecl *accessor,
       selfAccessKind = SelfAccessorKind::Peer;
     }
     break;
-
+// 🦆 here
   case TargetImpl::Wrapper: {
     auto var = cast<VarDecl>(accessor->getStorage());
     auto *backing = var->getPropertyWrapperBackingProperty();
@@ -766,6 +773,7 @@ static Expr *buildStorageReference(AccessorDecl *accessor,
     if (firstWrapperIdx < lastWrapperIdx) {
       auto lvalueness = *getPropertyWrapperLValueness(var);
 
+        // 🦆 this is a little confusing, come back to it later
       // Figure out if the outermost wrapper instance should be an l-value
       bool isLValueForGet = lvalueness.isLValueForGetAccess[firstWrapperIdx];
       bool isLValueForSet = lvalueness.isLValueForSetAccess[firstWrapperIdx];
@@ -785,10 +793,12 @@ static Expr *buildStorageReference(AccessorDecl *accessor,
                                (isLValueForSet && isUsedForSetAccess);
         }
 
+          // 🦆 what is the accessor here?
         // Check for availability of wrappedValue.
         if (accessor->getAccessorKind() == AccessorKind::Get ||
             accessor->getAccessorKind() == AccessorKind::Read) {
           if (wrappedValue->getAttrs().getUnavailable(ctx)) {
+              // 🦆 confused by this `getAttrs`  and `getUnvailable`  chain
             ExportContext where = ExportContext::forDeclSignature(var);
             diagnoseExplicitUnavailability(
                 wrappedValue,
@@ -806,6 +816,7 @@ static Expr *buildStorageReference(AccessorDecl *accessor,
   }
 
   case TargetImpl::WrapperStorage: {
+      // 🦆 is the original wrapped property the wrappedValue property?
     auto var =
         cast<VarDecl>(accessor->getStorage())->getOriginalWrappedProperty();
     auto *backing = var->getPropertyWrapperBackingProperty();
@@ -835,6 +846,7 @@ static Expr *buildStorageReference(AccessorDecl *accessor,
   }
   }
 
+    // // 🦆 what does it mean for the "base" to not be "self"? local property wrapper?
   // If the base is not 'self', default get access to nonmutating and set access to mutating.
   bool getterMutatesBase = selfDecl && storage->isGetterMutating();
   bool setterMutatesBase = !selfDecl || storage->isSetterMutating();
@@ -2771,12 +2783,12 @@ PropertyWrapperAuxiliaryVariablesRequest::evaluate(Evaluator &evaluator,
   VarDecl *wrappedValueVar = nullptr;
 
   // Create the backing storage property.
-  if (var->hasExternalPropertyWrapper()) {
+  if (var->hasExternalPropertyWrapper()) { // 🦆 what is an external property wrapper?
     auto *param = cast<ParamDecl>(var);
     backingVar = ParamDecl::cloneWithoutType(ctx, param);
     backingVar->setName(name);
   } else {
-    auto introducer = isa<ParamDecl>(var) ? VarDecl::Introducer::Let : VarDecl::Introducer::Var;
+    auto introducer = isa<ParamDecl>(var) ? VarDecl::Introducer::Let : VarDecl::Introducer::Var; // 🦆 what is this introducer?
     backingVar = new (ctx) VarDecl(/*IsStatic=*/var->isStatic(),
                                    introducer,
                                    var->getLoc(),
@@ -2828,7 +2840,7 @@ PropertyWrapperInitializerInfoRequest::evaluate(Evaluator &evaluator,
   Expr *initializer = nullptr;
   PropertyWrapperValuePlaceholderExpr *wrappedValue = nullptr;
 
-  auto createPBD = [&](VarDecl *singleVar) -> PatternBindingDecl * {
+  auto createPBD = [&](VarDecl *singleVar) -> PatternBindingDecl * { // 🦆 confusing
     Pattern *pattern = NamedPattern::createImplicit(ctx, singleVar);
     pattern->setType(singleVar->getType());
     pattern = TypedPattern::createImplicit(ctx, pattern, singleVar->getType());
@@ -2848,7 +2860,7 @@ PropertyWrapperInitializerInfoRequest::evaluate(Evaluator &evaluator,
     auto *pbd = createPBD(backingVar);
 
     // Force the default initializer to come into existence, if there is one,
-    // and the wrapper doesn't provide its own.
+    // and the wrapper doesn't provide its own. // 🦆 why is this here instead of the `PropertyWrapperTypeInfoRequest` 
     if (!parentPBD->isInitialized(patternNumber)
         && parentPBD->isDefaultInitializable(patternNumber)
         && !wrapperInfo.defaultInit) {

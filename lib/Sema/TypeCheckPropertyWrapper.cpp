@@ -59,7 +59,7 @@ static VarDecl *findValueProperty(ASTContext &ctx, NominalTypeDecl *nominal,
     }
     return nullptr;
 
-  case 1:
+  case 1: // 🦆 why is 1 allowed? -- oh this method looks for 1 variable per execution
     break;
 
   default:
@@ -97,6 +97,7 @@ static VarDecl *findValueProperty(ASTContext &ctx, NominalTypeDecl *nominal,
     break;
   }
 
+    // 🦆 what is an effect? -- throws, async
   // The property may not have any effects right now.
   if (auto getter = var->getEffectfulGetAccessor()) {
     getter->diagnose(diag::property_wrapper_effectful);
@@ -195,6 +196,7 @@ findSuitableWrapperInit(ASTContext &ctx, NominalTypeDecl *nominal,
       if (paramType->is<ErrorType>())
         continue;
 
+        // 🦆 perhaps the crash I found has something to do with this
       if (argumentParam->isAutoClosure()) {
         if (auto *fnType = paramType->getAs<FunctionType>())
           paramType = fnType->getResult();
@@ -322,7 +324,9 @@ static SubscriptDecl *findEnclosingSelfSubscript(ASTContext &ctx,
 
   return subscript;
 }
-
+/* 🦆 builds the `PropertyWrapperTypeInfo` while figuring out
+ 1. the valid init types
+ 2. looks into the nominal declaration looking for members such as wrappedValue, projectedValue */
 PropertyWrapperTypeInfo
 PropertyWrapperTypeInfoRequest::evaluate(
     Evaluator &eval, NominalTypeDecl *nominal) const {
@@ -340,8 +344,10 @@ PropertyWrapperTypeInfoRequest::evaluate(
   if (!valueVar)
     return PropertyWrapperTypeInfo();
 
+    // 🦆 adding the constructors doesn't mean constructing, right? adding the constructors.. to what?
   TypeChecker::addImplicitConstructors(nominal);
 
+    // 🦆 what is the `lookupQualified` method looking for in the wrapper type declaration?
   SmallVector<ValueDecl *, 2> decls;
   nominal->lookupQualified(nominal, DeclNameRef::createConstructor(),
                            NL_QualifiedDefault, decls);
@@ -382,7 +388,7 @@ PropertyWrapperTypeInfoRequest::evaluate(
       findSuitableWrapperInit(ctx, nominal, result.projectedValueVar,
                               PropertyWrapperInitKind::ProjectedValue, decls)) {
     result.hasProjectedValueInit = true;
-  }
+  } // 🦆 ok what happens if there's a projectedValue init but no projectedValue var? TODO: TEST THIS ISA!
 
   result.enclosingInstanceWrappedSubscript =
     findEnclosingSelfSubscript(ctx, nominal, ctx.Id_wrapped);
@@ -411,7 +417,7 @@ PropertyWrapperTypeInfoRequest::evaluate(
       result.projectedValueVar->getValueInterfaceType()->hasDynamicSelfType()) {
     result.projectedValueVar->diagnose(
         diag::property_wrapper_dynamic_self_type, /*projectedValue=*/true);
-    hasInvalidDynamicSelf = true;
+    hasInvalidDynamicSelf = true; // 🦆 im confused about what a "dynamic self" is
   }
 
   if (result.valueVar->getValueInterfaceType()->hasDynamicSelfType()) {
@@ -425,6 +431,11 @@ PropertyWrapperTypeInfoRequest::evaluate(
 
   return result;
 }
+/* 🦆
+1. checks if the @Wrapper has a corresponding nominal type declaration aka Wrapper struct or class with @propertywrapper attribute
+ 2. checks if declaration conditions are met (i.e its a variable, non lazy, etc)
+ 3. checks if the location of the declaration is okay -> not top level, protocol, extension, etc.
+ 4. it also checks more stuff */
 
 llvm::TinyPtrVector<CustomAttr *>
 AttachedPropertyWrappersRequest::evaluate(Evaluator &evaluator,
@@ -551,6 +562,8 @@ AttachedPropertyWrappersRequest::evaluate(Evaluator &evaluator,
   return result;
 }
 
+// 🦆 is VarDecl type checked already or is it.. .raw? idk
+// 🦆 ok so this requests returns the type, so it doesn't make sense for it to be type checked already. 
 Type AttachedPropertyWrapperTypeRequest::evaluate(Evaluator &evaluator,
                                                   VarDecl *var,
                                                   unsigned index) const {
@@ -580,7 +593,7 @@ Type AttachedPropertyWrapperTypeRequest::evaluate(Evaluator &evaluator,
 Type
 PropertyWrapperBackingPropertyTypeRequest::evaluate(
     Evaluator &evaluator, VarDecl *var) const {
-  if (var->hasImplicitPropertyWrapper())
+  if (var->hasImplicitPropertyWrapper()) // 🦆 I think this is specific of closures
     return var->getInterfaceType();
 
   // The constraint system will infer closure parameter types
@@ -593,7 +606,7 @@ PropertyWrapperBackingPropertyTypeRequest::evaluate(
 
   // If there's an initializer of some sort, checking it will determine the
   // property wrapper type.
-  auto binding = var->getParentPatternBinding();
+  auto binding = var->getParentPatternBinding(); // 🦆 confused about what is pattern binding
   unsigned index = binding ? binding->getPatternEntryIndexForVarDecl(var) : 0;
   if (binding && binding->isInitialized(index)) {
     // FIXME(InterfaceTypeRequest): Remove this.
@@ -638,11 +651,12 @@ PropertyWrapperBackingPropertyTypeRequest::evaluate(
     auto *nominal = type->getDesugaredType()->getAnyNominal();
     if (auto wrappedInfo = nominal->getPropertyWrapperTypeInfo()) {
       if (wrappedInfo.requireNoEnclosingInstance &&
-          !var->isStatic()) {
+          !var->isStatic()) { // 🦆 what is happening in this scenario?
         ctx.Diags.diagnose(var->getNameLoc(),
                            diag::property_wrapper_var_must_be_static,
-                           var->getName(), type);
-        // TODO: fixit insert static?
+                           var->getName(), type)
+          .fixItInsert(var->getAttributeInsertionLoc(true), "static ");
+        // TODO: fixit insert static? // 🦆 how do i test it?
         return Type();
       }
     }
