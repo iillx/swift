@@ -88,7 +88,7 @@ struct PropertyWrapperTypeInfo {
   /// ability to reason about the enclosing "self".
   SubscriptDecl *enclosingInstanceProjectedSubscript = nullptr;
 
-    // 🦆 when does it actually happen?
+    // 🦆 when is requireNoEnclosingInstance true?
   /// Forces that the property wrapper must be declared on a static, or
   /// global–once supported–property.
   bool requireNoEnclosingInstance = false;

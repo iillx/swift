@@ -59,7 +59,7 @@ static VarDecl *findValueProperty(ASTContext &ctx, NominalTypeDecl *nominal,
     }
     return nullptr;
 
-  case 1: // 🦆 why is 1 allowed? -- oh this method looks for 1 variable per execution
+  case 1:
     break;
 
   default:
@@ -420,6 +420,7 @@ PropertyWrapperTypeInfoRequest::evaluate(
     hasInvalidDynamicSelf = true; // 🦆 im confused about what a "dynamic self" is
   }
 
+    // 🦆 what does `getValueInterfaceType` do? what is an interface type?
   if (result.valueVar->getValueInterfaceType()->hasDynamicSelfType()) {
     result.valueVar->diagnose(
         diag::property_wrapper_dynamic_self_type, /*projectedValue=*/false);
@@ -520,6 +521,7 @@ AttachedPropertyWrappersRequest::evaluate(Evaluator &evaluator,
       continue;
     }
 
+      // 🦆 what is being checked here by the `AbstractFunctionDecl`?
     if (isa<ParamDecl>(var) && isa<AbstractFunctionDecl>(dc)) {
       dc = dc->getAsDecl()->getDeclContext();
     }
@@ -562,8 +564,6 @@ AttachedPropertyWrappersRequest::evaluate(Evaluator &evaluator,
   return result;
 }
 
-// 🦆 is VarDecl type checked already or is it.. .raw? idk
-// 🦆 ok so this requests returns the type, so it doesn't make sense for it to be type checked already. 
 Type AttachedPropertyWrapperTypeRequest::evaluate(Evaluator &evaluator,
                                                   VarDecl *var,
                                                   unsigned index) const {
@@ -593,7 +593,7 @@ Type AttachedPropertyWrapperTypeRequest::evaluate(Evaluator &evaluator,
 Type
 PropertyWrapperBackingPropertyTypeRequest::evaluate(
     Evaluator &evaluator, VarDecl *var) const {
-  if (var->hasImplicitPropertyWrapper()) // 🦆 I think this is specific of closures
+  if (var->hasImplicitPropertyWrapper()) // 🦆 are implicit property wrappers specific for closures?
     return var->getInterfaceType();
 
   // The constraint system will infer closure parameter types

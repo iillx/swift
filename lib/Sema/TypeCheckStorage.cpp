@@ -566,8 +566,7 @@ namespace {
     Wrapper,
     /// We're referencing the backing property for a property with a wrapper
     /// through the 'projectedValue' property.
-    WrapperStorage, // 🦆 is this comment assuming that projectedValues are most commonly used for exposing the wrapper itself?
-      // 🦆 does it change anything if the projected value exposes something else?
+    WrapperStorage,
   };
 } // end anonymous namespace
 
@@ -598,7 +597,7 @@ getEnclosingSelfPropertyWrapperAccess(VarDecl *property, bool forProjected) {
   Type outermostWrapperType = property->getPropertyWrapperBackingPropertyType();
   if (!outermostWrapperType)
     return None;
-  NominalTypeDecl *wrapperTypeDecl = outermostWrapperType->getAnyNominal(); // 🦆 the nominal type of property wrapper would be the Wrapper type itself?
+  NominalTypeDecl *wrapperTypeDecl = outermostWrapperType->getAnyNominal();
   if (!wrapperTypeDecl)
     return None;
 
@@ -2788,7 +2787,7 @@ PropertyWrapperAuxiliaryVariablesRequest::evaluate(Evaluator &evaluator,
     backingVar = ParamDecl::cloneWithoutType(ctx, param);
     backingVar->setName(name);
   } else {
-    auto introducer = isa<ParamDecl>(var) ? VarDecl::Introducer::Let : VarDecl::Introducer::Var; // 🦆 what is this introducer?
+    auto introducer = isa<ParamDecl>(var) ? VarDecl::Introducer::Let : VarDecl::Introducer::Var;
     backingVar = new (ctx) VarDecl(/*IsStatic=*/var->isStatic(),
                                    introducer,
                                    var->getLoc(),
@@ -2860,7 +2859,7 @@ PropertyWrapperInitializerInfoRequest::evaluate(Evaluator &evaluator,
     auto *pbd = createPBD(backingVar);
 
     // Force the default initializer to come into existence, if there is one,
-    // and the wrapper doesn't provide its own. // 🦆 why is this here instead of the `PropertyWrapperTypeInfoRequest` 
+    // and the wrapper doesn't provide its own.
     if (!parentPBD->isInitialized(patternNumber)
         && parentPBD->isDefaultInitializable(patternNumber)
         && !wrapperInfo.defaultInit) {
