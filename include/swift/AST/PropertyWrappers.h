@@ -88,7 +88,6 @@ struct PropertyWrapperTypeInfo {
   /// ability to reason about the enclosing "self".
   SubscriptDecl *enclosingInstanceProjectedSubscript = nullptr;
 
-    // 🦆 when is requireNoEnclosingInstance true?
   /// Forces that the property wrapper must be declared on a static, or
   /// global–once supported–property.
   bool requireNoEnclosingInstance = false;
@@ -99,7 +98,6 @@ struct PropertyWrapperTypeInfo {
     return valueVar != nullptr;
   }
 
-    // 🦆 ooooooooh :exploding-head:
   explicit operator bool() const { return isValid(); }
 
   friend bool operator==(const PropertyWrapperTypeInfo &lhs,

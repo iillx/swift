@@ -96,8 +96,7 @@ static VarDecl *findValueProperty(ASTContext &ctx, NominalTypeDecl *nominal,
   case ActorIsolation::Unspecified:
     break;
   }
-
-    // 🦆 what is an effect? -- throws, async
+// 🦆 I want to know more about why it cant have effects
   // The property may not have any effects right now.
   if (auto getter = var->getEffectfulGetAccessor()) {
     getter->diagnose(diag::property_wrapper_effectful);
@@ -196,7 +195,6 @@ findSuitableWrapperInit(ASTContext &ctx, NominalTypeDecl *nominal,
       if (paramType->is<ErrorType>())
         continue;
 
-        // 🦆 perhaps the crash I found has something to do with this
       if (argumentParam->isAutoClosure()) {
         if (auto *fnType = paramType->getAs<FunctionType>())
           paramType = fnType->getResult();
@@ -388,7 +386,7 @@ PropertyWrapperTypeInfoRequest::evaluate(
       findSuitableWrapperInit(ctx, nominal, result.projectedValueVar,
                               PropertyWrapperInitKind::ProjectedValue, decls)) {
     result.hasProjectedValueInit = true;
-  } // 🦆 ok what happens if there's a projectedValue init but no projectedValue var? TODO: TEST THIS ISA!
+  }
 
   result.enclosingInstanceWrappedSubscript =
     findEnclosingSelfSubscript(ctx, nominal, ctx.Id_wrapped);
@@ -417,7 +415,7 @@ PropertyWrapperTypeInfoRequest::evaluate(
       result.projectedValueVar->getValueInterfaceType()->hasDynamicSelfType()) {
     result.projectedValueVar->diagnose(
         diag::property_wrapper_dynamic_self_type, /*projectedValue=*/true);
-    hasInvalidDynamicSelf = true; // 🦆 im confused about what a "dynamic self" is
+    hasInvalidDynamicSelf = true;
   }
 
     // 🦆 what does `getValueInterfaceType` do? what is an interface type?
@@ -593,7 +591,7 @@ Type AttachedPropertyWrapperTypeRequest::evaluate(Evaluator &evaluator,
 Type
 PropertyWrapperBackingPropertyTypeRequest::evaluate(
     Evaluator &evaluator, VarDecl *var) const {
-  if (var->hasImplicitPropertyWrapper()) // 🦆 are implicit property wrappers specific for closures?
+  if (var->hasImplicitPropertyWrapper())
     return var->getInterfaceType();
 
   // The constraint system will infer closure parameter types
@@ -651,7 +649,7 @@ PropertyWrapperBackingPropertyTypeRequest::evaluate(
     auto *nominal = type->getDesugaredType()->getAnyNominal();
     if (auto wrappedInfo = nominal->getPropertyWrapperTypeInfo()) {
       if (wrappedInfo.requireNoEnclosingInstance &&
-          !var->isStatic()) { // 🦆 what is happening in this scenario?
+          !var->isStatic()) {
         ctx.Diags.diagnose(var->getNameLoc(),
                            diag::property_wrapper_var_must_be_static,
                            var->getName(), type)

@@ -108,7 +108,7 @@ static void computeLoweredStoredProperties(NominalTypeDecl *decl) {
   // Just walk over the members of the type, forcing backing storage
   // for lazy properties and property wrappers to be synthesized.
   for (auto *member : decl->getMembers()) {
-    auto *var = dyn_cast<VarDecl>(member); // 🦆 dyn_cast? is it just a normal cast?
+    auto *var = dyn_cast<VarDecl>(member);
     if (!var || var->isStatic())
       continue;
 
@@ -160,9 +160,6 @@ StoredPropertiesRequest::evaluate(Evaluator &evaluator,
   return decl->getASTContext().AllocateCopy(results);
 }
 
-// 🦆 ok so I've read in the documentation that the evaluator was supposed to cache results instead of mutating the AST context.
-// is the copy above returned to the evaluator?
-
 ArrayRef<Decl *>
 StoredPropertiesAndMissingMembersRequest::evaluate(Evaluator &evaluator,
                                                    NominalTypeDecl *decl) const {
@@ -190,7 +187,7 @@ StoredPropertiesAndMissingMembersRequest::evaluate(Evaluator &evaluator,
 }
 
 /// Validate the \c entryNumber'th entry in \c binding.
-const PatternBindingEntry * //🦆 what does pattern binding mean?
+const PatternBindingEntry *
 PatternBindingEntryRequest::evaluate(Evaluator &eval,
                                      PatternBindingDecl *binding,
                                      unsigned entryNumber) const {
@@ -251,7 +248,7 @@ PatternBindingEntryRequest::evaluate(Evaluator &eval,
   // If the pattern contains some form of unresolved type, we'll need to
   // check the initializer.
   if (patternType->hasUnresolvedType() ||
-      patternType->hasUnboundGenericType()) { // 🦆 woah I actually understood this part!
+      patternType->hasUnboundGenericType()) {
     if (TypeChecker::typeCheckPatternBinding(binding, entryNumber,
                                              patternType)) {
       binding->setInvalid();
@@ -626,7 +623,7 @@ getPropertyWrapperLValueness(VarDecl *var) {
   auto &ctx = var->getASTContext();
   return evaluateOrDefault(
       ctx.evaluator,
-      PropertyWrapperLValuenessRequest{var}, // 🦆is this requesting the wrapper backing storage in memory location? 
+      PropertyWrapperLValuenessRequest{var},
       None);
 }
 
@@ -792,7 +789,6 @@ static Expr *buildStorageReference(AccessorDecl *accessor,
                                (isLValueForSet && isUsedForSetAccess);
         }
 
-          // 🦆 what is the accessor here?
         // Check for availability of wrappedValue.
         if (accessor->getAccessorKind() == AccessorKind::Get ||
             accessor->getAccessorKind() == AccessorKind::Read) {
@@ -815,7 +811,6 @@ static Expr *buildStorageReference(AccessorDecl *accessor,
   }
 
   case TargetImpl::WrapperStorage: {
-      // 🦆 is the original wrapped property the wrappedValue property?
     auto var =
         cast<VarDecl>(accessor->getStorage())->getOriginalWrappedProperty();
     auto *backing = var->getPropertyWrapperBackingProperty();
@@ -2665,7 +2660,7 @@ PropertyWrapperMutabilityRequest::evaluate(Evaluator &,
   for (unsigned i = 1; i < numWrappers && !isProjectedValue; ++i) {
     assert(var == originalVar);
     auto wrapper = var->getAttachedPropertyWrapperTypeInfo(i);
-    if (!wrapper.valueVar)
+    if (!wrapper.valueVar) // 🦆 is the valueVar the wrappedValue ?
       return None;
     
     PropertyWrapperMutability nextResult;
@@ -2692,6 +2687,8 @@ PropertyWrapperMutabilityRequest::evaluate(Evaluator &,
   return result;
 }
 
+/* 🦆
+ it figures out the mutability of the wrapper composition chain of both get and set accessors */
 Optional<PropertyWrapperLValueness>
 PropertyWrapperLValuenessRequest::evaluate(Evaluator &,
                                            VarDecl *var) const {
@@ -2743,6 +2740,8 @@ PropertyWrapperLValuenessRequest::evaluate(Evaluator &,
 
   auto lastAccessForGet = lastAccess.Getter;
   auto lastAccessForSet = lastAccess.Setter;
+    
+    // 🦆 okay perhaps come back to this later
   for (int i = innermostWrapperIdx - 1; i >= 0; --i) {
     auto access = accessorMutability(i);
 
@@ -2782,7 +2781,7 @@ PropertyWrapperAuxiliaryVariablesRequest::evaluate(Evaluator &evaluator,
   VarDecl *wrappedValueVar = nullptr;
 
   // Create the backing storage property.
-  if (var->hasExternalPropertyWrapper()) { // 🦆 what is an external property wrapper?
+  if (var->hasExternalPropertyWrapper()) {
     auto *param = cast<ParamDecl>(var);
     backingVar = ParamDecl::cloneWithoutType(ctx, param);
     backingVar->setName(name);

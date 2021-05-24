@@ -5075,6 +5075,9 @@ void ASTContext::setSideCachedPropertyWrapperBackingPropertyType(
   getImpl().PropertyWrapperBackingVarTypes[var] = type;
 }
 
+/* 🦆
+ `ctx.getImpl().OriginalWrappedProperties` is a dictionary
+ gets the original wrapped properties, the projected or the backing */
 VarDecl *VarDecl::getOriginalWrappedProperty(
     Optional<PropertyWrapperSynthesizedPropertyKind> kind) const {
   if (!Bits.VarDecl.IsPropertyWrapperBackingProperty)
@@ -5088,7 +5091,6 @@ VarDecl *VarDecl::getOriginalWrappedProperty(
 
   auto wrapperInfo = original->getPropertyWrapperAuxiliaryVariables();
     
-    // 🦆 what is going on here, what is `this` in this scope?
   switch (*kind) {
   case PropertyWrapperSynthesizedPropertyKind::Backing:
     return this == wrapperInfo.backingVar ? original : nullptr;
