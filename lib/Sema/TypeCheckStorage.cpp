@@ -137,7 +137,7 @@ static void computeLoweredStoredProperties(NominalTypeDecl *decl) {
   }
 }
 
-ArrayRef<VarDecl *> // 🦆 ?? what does it mean?
+ArrayRef<VarDecl *>
 StoredPropertiesRequest::evaluate(Evaluator &evaluator,
                                   NominalTypeDecl *decl) const {
   if (!hasStoredProperties(decl))
@@ -793,7 +793,6 @@ static Expr *buildStorageReference(AccessorDecl *accessor,
         if (accessor->getAccessorKind() == AccessorKind::Get ||
             accessor->getAccessorKind() == AccessorKind::Read) {
           if (wrappedValue->getAttrs().getUnavailable(ctx)) {
-              // 🦆 confused by this `getAttrs`  and `getUnvailable`  chain
             ExportContext where = ExportContext::forDeclSignature(var);
             diagnoseExplicitUnavailability(
                 wrappedValue,
@@ -2660,7 +2659,7 @@ PropertyWrapperMutabilityRequest::evaluate(Evaluator &,
   for (unsigned i = 1; i < numWrappers && !isProjectedValue; ++i) {
     assert(var == originalVar);
     auto wrapper = var->getAttachedPropertyWrapperTypeInfo(i);
-    if (!wrapper.valueVar) // 🦆 is the valueVar the wrappedValue ?
+    if (!wrapper.valueVar)
       return None;
     
     PropertyWrapperMutability nextResult;

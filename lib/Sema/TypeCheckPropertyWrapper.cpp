@@ -96,7 +96,7 @@ static VarDecl *findValueProperty(ASTContext &ctx, NominalTypeDecl *nominal,
   case ActorIsolation::Unspecified:
     break;
   }
-// 🦆 I want to know more about why it cant have effects
+    
   // The property may not have any effects right now.
   if (auto getter = var->getEffectfulGetAccessor()) {
     getter->diagnose(diag::property_wrapper_effectful);
@@ -342,7 +342,6 @@ PropertyWrapperTypeInfoRequest::evaluate(
   if (!valueVar)
     return PropertyWrapperTypeInfo();
 
-    // 🦆 adding the constructors doesn't mean constructing, right? adding the constructors.. to what?
   TypeChecker::addImplicitConstructors(nominal);
 
     // 🦆 what is the `lookupQualified` method looking for in the wrapper type declaration?
@@ -418,7 +417,6 @@ PropertyWrapperTypeInfoRequest::evaluate(
     hasInvalidDynamicSelf = true;
   }
 
-    // 🦆 what does `getValueInterfaceType` do? what is an interface type?
   if (result.valueVar->getValueInterfaceType()->hasDynamicSelfType()) {
     result.valueVar->diagnose(
         diag::property_wrapper_dynamic_self_type, /*projectedValue=*/false);
@@ -519,7 +517,6 @@ AttachedPropertyWrappersRequest::evaluate(Evaluator &evaluator,
       continue;
     }
 
-      // 🦆 what is being checked here by the `AbstractFunctionDecl`?
     if (isa<ParamDecl>(var) && isa<AbstractFunctionDecl>(dc)) {
       dc = dc->getAsDecl()->getDeclContext();
     }
@@ -604,7 +601,7 @@ PropertyWrapperBackingPropertyTypeRequest::evaluate(
 
   // If there's an initializer of some sort, checking it will determine the
   // property wrapper type.
-  auto binding = var->getParentPatternBinding(); // 🦆 confused about what is pattern binding
+  auto binding = var->getParentPatternBinding();
   unsigned index = binding ? binding->getPatternEntryIndexForVarDecl(var) : 0;
   if (binding && binding->isInitialized(index)) {
     // FIXME(InterfaceTypeRequest): Remove this.
