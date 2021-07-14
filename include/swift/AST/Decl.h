@@ -5317,6 +5317,9 @@ class ParamDecl : public VarDecl {
 
     /// Whether or not this parameter is 'isolated'.
     IsIsolated = 1 << 2,
+    
+    /// Wether or not this parameter is `@expanded`.
+    IsExpanded = 1 << 3
   };
 
   /// The default value, if any, along with flags.
@@ -5472,6 +5475,17 @@ public:
     auto flags = DefaultValueAndFlags.getInt();
     DefaultValueAndFlags.setInt(value ? flags | Flags::IsAutoClosure
                                       : flags - Flags::IsAutoClosure);
+  }
+	
+	/// Wether or not this parameter is marked with `@expanded`.
+	bool isExpanded() const {
+		return DefaultValueAndFlags.getInt().contains(Flags::IsExpanded);
+	}
+	
+  void setExpanded(bool value = true) {
+    auto flags = DefaultValueAndFlags.getInt();
+    DefaultValueAndFlags.setInt(value ? flags | Flags::IsExpanded
+                                : flags - Flags::IsExpanded);
   }
 
   /// Whether or not this parameter is marked with 'isolated'.

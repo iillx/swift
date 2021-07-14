@@ -995,6 +995,7 @@ public:
   bool isAutoClosure() const { return Data & AutoClosureMask; }
   bool isNoDerivative() const { return Data & NoDerivativeMask; }
   bool isIsolated() const { return Data & IsolatedMask; }
+	bool isExpanded() const { return true; } // 🌿 TODO figure this out later
 
   ValueOwnership getValueOwnership() const {
     return (ValueOwnership)(Data & ValueOwnershipMask);

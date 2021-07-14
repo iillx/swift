@@ -3091,6 +3091,11 @@ ERROR(escaping_non_function_parameter,none,
 ERROR(escaping_optional_type_argument, none,
       "closure is already escaping in optional type argument", ())
 
+// @expanded attribute
+ERROR(expanded_function_type, none, "@expanded attribute can't be used with a function type", ())
+
+ERROR(expanded_non_nominal_type, none, "@expanded attribute can only be used with nominal types", ())
+
 // @_nonEphemeral attribute
 ERROR(non_ephemeral_non_pointer_type,none,
       "@_nonEphemeral attribute only applies to pointer types", ())

@@ -422,6 +422,59 @@ static bool matchCallArgumentsImpl(
     // Typo correction is handled in a later pass.
     return None;
   };
+  
+  auto claimExpandedParameter = [&](unsigned &nextArgIdx, AnyFunctionType::Param param,
+                                    bool ignoreNameMismatch) {
+    Identifier paramLabel = param.getLabel();
+    
+    // First try to claim the non-expanded form.
+    auto claimed =
+    claimNextNamed(nextArgIdx, paramLabel, ignoreNameMismatch);
+    // (don't forget to add it to the bindings list if it succeeds)
+    
+    // If there wasn't a non-expanded argument, look for the expanded form.
+    if (!claimed) {
+      // Only Nominal types are allowed.
+      if (NominalTypeDecl* nominalType = param.getPlainType()->getAnyNominal()) {
+        auto type = param.getPlainType();
+        auto dc = nominalType->getDeclContext();
+        
+        // Lookup all initializers for the nominal type.
+        auto lookup = TypeChecker::lookupMember(dc, type, DeclNameRef::createConstructor());
+        
+        if (lookup.empty()) {
+          // No initializers found. Maybe they're private?
+          // Is there a way to emit an error from here?
+        } else {
+          
+          // Go over the initializers we found and try to match their parameters to the arguments
+          for (auto entry : lookup) {
+            auto *initializer = cast<ConstructorDecl>(entry.getValueDecl());
+            
+            if (!initializer->hasParameterList()) {
+              // Skip inits without parameters?
+            } else {
+              auto initParams = initializer->getParameters();
+              auto localNextArgIdx = nextArgIdx;
+              
+              for (auto parameter : *initParams) {
+                auto name = parameter->getParameterName();
+                
+                if (auto claimed = claimNextNamed(localNextArgIdx, name, ignoreNameMismatch)) {
+                  // increment localNextArgIdx
+                  // save claimed in parameterBindings
+                }
+                
+              }
+              
+              // if at least one init param doesn't match the argument, go to the next init?
+              // still, it could be the correct one but with an argument missing (programmer error)
+            }
+          }
+        }
+      }
+    }
+  };
 
   // Local function that attempts to bind the given parameter to arguments in
   // the list.
@@ -462,6 +515,11 @@ static bool matchCallArgumentsImpl(
       // The argument is unlabeled, so mark the parameter as unlabeled as
       // well.
       paramLabel = Identifier();
+    }
+		
+    // Handle expanded parameters
+    if (param.isExpanded()) {
+      
     }
 
     // Handle variadic parameters.
@@ -519,7 +577,7 @@ static bool matchCallArgumentsImpl(
       return;
     }
 
-    // There was no argument to claim. Leave the argument unfulfilled.
+    // There was no argument to claim. Leave the argument unfulfilled. // shouldn't it be "Leave the parameter unfulfilled"?
     haveUnfulfilledParams = true;
   };
 
@@ -1425,7 +1483,7 @@ ConstraintSystem::TypeMatchResult constraints::matchCallArguments(
           paramTy = fnType->getResult();
         } else {
           // Matching @autoclosure argument to @autoclosure parameter
-          // directly would mean introducting a function conversion
+          // directly would mean introducing a function conversion
           // in Swift <= 4 mode.
           cs.increaseScore(SK_FunctionConversion);
           matchingAutoClosureResult = false;

@@ -363,7 +363,8 @@ Type ASTBuilder::createFunctionType(
                               .withValueOwnership(ownership)
                               .withVariadic(flags.isVariadic())
                               .withAutoClosure(flags.isAutoClosure())
-                              .withNoDerivative(flags.isNoDerivative());
+                              .withNoDerivative(flags.isNoDerivative())
+                              .withExpanded(flags.isExpanded());
 
     funcParams.push_back(AnyFunctionType::Param(type, label, parameterFlags));
   }

@@ -56,6 +56,7 @@ TYPE_ATTR(noDerivative)
 TYPE_ATTR(async)
 TYPE_ATTR(Sendable)
 TYPE_ATTR(unchecked)
+TYPE_ATTR(expanded)
 
 // SIL-specific attributes
 TYPE_ATTR(block_storage)

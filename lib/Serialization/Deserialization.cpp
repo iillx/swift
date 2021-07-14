@@ -5252,7 +5252,7 @@ public:
       params.emplace_back(paramTy.get(), MF.getIdentifier(labelID),
                           ParameterTypeFlags(isVariadic, isAutoClosure,
                                              isNonEphemeral, *ownership,
-                                             isIsolated, isNoDerivative),
+                                             isIsolated, isNoDerivative, false), // TODO: 🌿 got weird errors when I updated `FunctionParamLayout` to include expanded
                           MF.getIdentifier(internalLabelID));
     }
 

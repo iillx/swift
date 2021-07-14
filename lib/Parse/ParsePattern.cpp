@@ -603,6 +603,13 @@ mapParsedParameters(Parser &parser,
           break;
         }
       }
+      
+      // If there's `@expanded` attribute associated with the type,
+      // mark that in the declaration.
+      if (auto ATR = dyn_cast<AttributedTypeRepr>(type)) {
+        auto &attrs = ATR->getAttrs();
+        param->setExpanded(attrs.has(TypeAttrKind::TAK_expanded));
+      }
     } else if (paramInfo.SpecifierLoc.isValid()) {
       StringRef specifier;
       switch (paramInfo.SpecifierKind) {

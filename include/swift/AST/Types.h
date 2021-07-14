@@ -1924,6 +1924,7 @@ class ParameterTypeFlags {
     Ownership    = 7 << OwnershipShift,
     NoDerivative = 1 << 6,
     Isolated     = 1 << 7,
+    Expanded = 1 << 7, // TODO: 1 << 8 this will cause an overflow,  fix
     NumBits = 8
   };
   OptionSet<ParameterFlags> value;
@@ -1938,19 +1939,20 @@ public:
   }
 
   ParameterTypeFlags(bool variadic, bool autoclosure, bool nonEphemeral,
-                     ValueOwnership ownership, bool isolated, bool noDerivative)
+                     ValueOwnership ownership, bool isolated, bool noDerivative, bool isExpanded)
       : value((variadic ? Variadic : 0) | (autoclosure ? AutoClosure : 0) |
               (nonEphemeral ? NonEphemeral : 0) |
               uint8_t(ownership) << OwnershipShift |
               (isolated ? Isolated : 0) |
-              (noDerivative ? NoDerivative : 0)) {}
+              (noDerivative ? NoDerivative : 0) |
+              (isExpanded ? Expanded : 0)) {}
 
   /// Create one from what's present in the parameter type
   inline static ParameterTypeFlags
   fromParameterType(Type paramTy, bool isVariadic, bool isAutoClosure,
                     bool isNonEphemeral, ValueOwnership ownership,
-                    bool isolated, bool isNoDerivative);
-
+                    bool isolated, bool isNoDerivative, bool isExpanded);
+  
   bool isNone() const { return !value; }
   bool isVariadic() const { return value.contains(Variadic); }
   bool isAutoClosure() const { return value.contains(AutoClosure); }
@@ -1960,6 +1962,7 @@ public:
   bool isOwned() const { return getValueOwnership() == ValueOwnership::Owned; }
   bool isIsolated() const { return value.contains(Isolated); }
   bool isNoDerivative() const { return value.contains(NoDerivative); }
+  bool isExpanded() const { return value.contains(Expanded); }
 
   ValueOwnership getValueOwnership() const {
     return ValueOwnership((value.toRaw() & Ownership) >> OwnershipShift);
@@ -2012,6 +2015,12 @@ public:
     return ParameterTypeFlags(noDerivative
                                   ? value | ParameterTypeFlags::NoDerivative
                                   : value - ParameterTypeFlags::NoDerivative);
+  }
+	
+  ParameterTypeFlags withExpanded(bool isExpanded) const {
+    return ParameterTypeFlags(isExpanded
+                              ? value | ParameterTypeFlags::Expanded
+                              : value - ParameterTypeFlags::Expanded);
   }
 
   bool operator ==(const ParameterTypeFlags &other) const {
@@ -2081,7 +2090,9 @@ public:
     return ParameterTypeFlags(/*variadic*/ false,
                               /*autoclosure*/ false,
                               /*nonEphemeral*/ false, getValueOwnership(),
-                              /*isolated*/ false, /*noDerivative*/ false);
+                              /*isolated*/ false,
+                              /*noDerivative*/ false,
+                              /*expanded*/ false);
   }
 
   bool operator ==(const YieldTypeFlags &other) const {
@@ -2865,6 +2876,9 @@ public:
 
     /// Whether the parameter is marked '@noDerivative'.
     bool isNoDerivative() const { return Flags.isNoDerivative(); }
+		
+    /// Whether the parameter is marked with '@expanded'.
+    bool isExpanded() const { return Flags.isExpanded(); }
 
     ValueOwnership getValueOwnership() const {
       return Flags.getValueOwnership();
@@ -6249,7 +6263,7 @@ inline TupleTypeElt TupleTypeElt::getWithType(Type T) const {
 /// Create one from what's present in the parameter decl and type
 inline ParameterTypeFlags ParameterTypeFlags::fromParameterType(
     Type paramTy, bool isVariadic, bool isAutoClosure, bool isNonEphemeral,
-    ValueOwnership ownership, bool isolated, bool isNoDerivative) {
+    ValueOwnership ownership, bool isolated, bool isNoDerivative, bool isExpanded) {
   // FIXME(Remove InOut): The last caller that needs this is argument
   // decomposition.  Start by enabling the assertion there and fixing up those
   // callers, then remove this, then remove
@@ -6260,7 +6274,7 @@ inline ParameterTypeFlags ParameterTypeFlags::fromParameterType(
     ownership = ValueOwnership::InOut;
   }
   return {isVariadic, isAutoClosure, isNonEphemeral, ownership, isolated,
-          isNoDerivative};
+          isNoDerivative, isExpanded};
 }
 
 inline const Type *BoundGenericType::getTrailingObjectsPointer() const {

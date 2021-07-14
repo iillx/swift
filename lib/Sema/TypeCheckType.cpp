@@ -1733,6 +1733,47 @@ static Type applyNonEscapingIfNecessary(Type ty,
   return ty;
 }
 
+/// Validate whether the type associated with the @expanded attribute is correct,
+/// it should be a nominal type with a valid initializer.
+/// \returns true if there was an error, false otherwise.
+static bool validateExpandedAttr(DiagnosticEngine &Diags, const SourceLoc &loc,
+                                 Type paramType) {
+	if (paramType->getAs<FunctionType>()) {
+		Diags.diagnose(loc, diag::expanded_function_type);
+		return true;
+	}
+	
+	// Nominal type is okay
+	if (paramType->getAs<NominalType>()) {
+		return false;
+	}
+	
+	Diags.diagnose(loc, diag::expanded_non_nominal_type);
+	return true;
+}
+
+/// Check if the type associated with a source location has `@expanded` attribute
+/// and validates that such use is correct.
+/// \returns true if there was an error, false otherwise.
+static bool validateExpandedAttributeUse(DiagnosticEngine &Diags,
+                                         const TypeRepr *TR,
+                                         Type type,
+                                         TypeResolutionOptions options) {
+	if (!TR || TR->isInvalid())
+		return false;
+	
+	// If it is a parameter marked as @expanded.
+	if (options.is(TypeResolverContext::FunctionInput) or options.is(TypeResolverContext::SubscriptDecl)) { // or InoutFunctionInput?
+		if (auto *ATR = dyn_cast<AttributedTypeRepr>(TR)) {
+			const auto attrLoc = ATR->getAttrs().getLoc(TAK_expanded);
+			
+			if (attrLoc.isValid())
+				return validateExpandedAttr(Diags, attrLoc, type);
+		}
+	}
+	return false;
+}
+
 /// Validate whether type associated with @autoclosure attribute is correct,
 /// it supposed to be a function type with no parameters.
 /// \returns true if there was an error, false otherwise.
@@ -1978,6 +2019,9 @@ Type ResolveTypeRequest::evaluate(Evaluator &evaluator,
   }
 
   if (validateAutoClosureAttributeUse(ctx.Diags, TyR, result, options))
+    return ErrorType::get(ctx);
+  
+  if (validateExpandedAttributeUse(ctx.Diags, TyR, result, options))
     return ErrorType::get(ctx);
 
   return result;
@@ -2732,6 +2776,10 @@ TypeResolver::resolveASTFunctionTypeParams(TupleTypeRepr *inputRepr,
     if (auto *ATR = dyn_cast<AttributedTypeRepr>(eltTypeRepr))
       autoclosure = ATR->getAttrs().has(TAK_autoclosure);
 
+    bool expanded = false;
+    if (auto *ATR = dyn_cast<AttributedTypeRepr>(eltTypeRepr))
+      expanded = ATR->getAttrs().has(TAK_expanded);
+    
     ValueOwnership ownership = ValueOwnership::Default;
 
     auto *nestedRepr = eltTypeRepr;
@@ -2788,7 +2836,7 @@ TypeResolver::resolveASTFunctionTypeParams(TupleTypeRepr *inputRepr,
 
     auto paramFlags = ParameterTypeFlags::fromParameterType(
         ty, variadic, autoclosure, /*isNonEphemeral*/ false, ownership,
-        isolated, noDerivative);
+        isolated, noDerivative, expanded);
     elements.emplace_back(ty, Identifier(), paramFlags,
                           inputRepr->getElementName(i));
   }
