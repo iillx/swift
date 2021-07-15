@@ -276,6 +276,10 @@ static bool matchCallArgumentsImpl(
   SmallVector<bool, 4> claimedArgs(numArgs, false);
   SmallVector<Identifier, 4> actualArgNames;
   unsigned numClaimedArgs = 0;
+  
+  // Keep track of expanded parameters to bind later.
+  // PS: even though it's a vector, it will only work for one expanded param. figure this out.
+  SmallVector<unsigned, 4> expandedParamIdxs;
 
   // Indicates whether any of the arguments are potentially out-of-order,
   // requiring further checking at the end.
@@ -423,56 +427,70 @@ static bool matchCallArgumentsImpl(
     return None;
   };
   
+  // Local function that attempts to lookup initializers for the
+  // expanded parameter types and match arguments for them.
+  // I'm not planning to use this anymore 🤡
   auto claimExpandedParameter = [&](unsigned &nextArgIdx, AnyFunctionType::Param param,
-                                    bool ignoreNameMismatch) {
-    Identifier paramLabel = param.getLabel();
-    
-    // First try to claim the non-expanded form.
-    auto claimed =
-    claimNextNamed(nextArgIdx, paramLabel, ignoreNameMismatch);
-    // (don't forget to add it to the bindings list if it succeeds)
-    
-    // If there wasn't a non-expanded argument, look for the expanded form.
-    if (!claimed) {
-      // Only Nominal types are allowed.
-      if (NominalTypeDecl* nominalType = param.getPlainType()->getAnyNominal()) {
-        auto type = param.getPlainType();
-        auto dc = nominalType->getDeclContext();
-        
-        // Lookup all initializers for the nominal type.
-        auto lookup = TypeChecker::lookupMember(dc, type, DeclNameRef::createConstructor());
-        
+                                    bool ignoreNameMismatch) -> Optional<ParamBinding> {
+    // Only nominal types are allowed to be expanded.
+    if (NominalTypeDecl* nominalType = param.getPlainType()->getAnyNominal()) {
+      auto type = param.getPlainType();
+      auto dc = nominalType->getDeclContext();
+      
+      // Keep track of initializers and the bindings for each of them
+      llvm::SmallDenseMap<ConstructorDecl *, ParamBinding, 4> localParameterBindings;
+      
+      // Lookup the visible initializers for the nominal type.
+      DeclNameRef init = DeclNameRef::createConstructor();
+      auto lookup = TypeChecker::lookupMember(dc, type, init);
+      
+      if (lookup.empty()) {
+        // No initializers found. Maybe they're private?
+        auto lookup = TypeChecker::lookupMember(dc, type, init, NameLookupFlags::IgnoreAccessControl);
         if (lookup.empty()) {
-          // No initializers found. Maybe they're private?
-          // Is there a way to emit an error from here?
+          // TODO: emit diagnostic. No initializers were found for this type
         } else {
+          // TODO: emit diagnostic about initializers access level.
+        }
+      } else {
+        // Go over the initializers and try to match their parameters to the arguments
+        for (auto entry : lookup) {
+          auto *initializer = cast<ConstructorDecl>(entry.getValueDecl());
           
-          // Go over the initializers we found and try to match their parameters to the arguments
-          for (auto entry : lookup) {
-            auto *initializer = cast<ConstructorDecl>(entry.getValueDecl());
+          // Skip initializers without parameters.
+          if (!initializer->hasParameterList()) {
+            continue;
+          } else {
+            auto initParams = initializer->getParameters();
+            auto localNextArgIdx = nextArgIdx;
             
-            if (!initializer->hasParameterList()) {
-              // Skip inits without parameters?
-            } else {
-              auto initParams = initializer->getParameters();
-              auto localNextArgIdx = nextArgIdx;
+            for (auto parameter : *initParams) {
+              auto paramName = parameter->getParameterName();
               
-              for (auto parameter : *initParams) {
-                auto name = parameter->getParameterName();
-                
-                if (auto claimed = claimNextNamed(localNextArgIdx, name, ignoreNameMismatch)) {
-                  // increment localNextArgIdx
-                  // save claimed in parameterBindings
-                }
-                
+              // TODO: claim() and claimNextNamed() will mess with local state on the function
+              // such as potentiallyOutOfOrder, claimedArgs, numClaimedArgs, actualArgNames.
+              // It would be weird to "clean" them as we iterate through the possible initializers
+              
+              if (auto claimed = claimNextNamed(localNextArgIdx, paramName, ignoreNameMismatch)) {
+                localParameterBindings[initializer].emplace_back(*claimed);
+              } else {
+                // give up check next initializer
+                break;
+                // in this case I would also need to clean the state variables that were updated while trying to claim.
               }
-              
-              // if at least one init param doesn't match the argument, go to the next init?
-              // still, it could be the correct one but with an argument missing (programmer error)
+            }
+            
+            // Check if all init parameters were matched.
+            auto &currentBindings = localParameterBindings[initializer];
+            if (currentBindings.size() == initParams->size()) {
+              return currentBindings;
+            } else {
+              return None;
             }
           }
         }
       }
+      return None;
     }
   };
 
@@ -515,11 +533,6 @@ static bool matchCallArgumentsImpl(
       // The argument is unlabeled, so mark the parameter as unlabeled as
       // well.
       paramLabel = Identifier();
-    }
-		
-    // Handle expanded parameters
-    if (param.isExpanded()) {
-      
     }
 
     // Handle variadic parameters.
@@ -576,8 +589,25 @@ static bool matchCallArgumentsImpl(
       parameterBindings[paramIdx].push_back(*claimed);
       return;
     }
-
-    // There was no argument to claim. Leave the argument unfulfilled. // shouldn't it be "Leave the parameter unfulfilled"?
+    
+    // If the expanded parameter couldn't be fulfilled in a default way,
+    // look for arguments that would fulfill the expanded form.
+//    if (param.isExpanded()) {
+//      if (auto bindings = claimExpandedParameter(nextArgIdx, param, ignoreNameMismatch)) {
+//        for (auto elem : *bindings) {
+//          // Perhaps it would be a problem to have multiple bindings per paramIdx. Find out the impact of this.
+//          parameterBindings[paramIdx].push_back(elem);
+//        }
+//        return;
+//      }
+//    }
+    
+    // If expanded param wasn't fulfilled in a non-expanded fashion, record it.
+    if (param.isExpanded()) {
+      expandedParamIdxs.push_back(paramIdx);
+      return;
+    }
+    // There was no argument to claim. Leave the parameter unfulfilled.
     haveUnfulfilledParams = true;
   };
 
@@ -638,6 +668,29 @@ static bool matchCallArgumentsImpl(
     for (auto paramIdx : indices(params)) {
       if (parameterBindings[paramIdx].empty())
         bindNextParameter(paramIdx, nextArgIdx, false);
+    }
+  }
+  
+  // Check for unfulfilled expanded parameters.
+  if (!expandedParamIdxs.empty()) {
+    
+    // Get unclaimed arguments. (do they need to be adjacent?)
+    llvm::SmallVector<unsigned, 4> unclaimedArgs;
+    for (auto argIdx : indices(args)) {
+      if (claimedArgs[argIdx]) continue;
+      unclaimedArgs.push_back(argIdx);
+      
+      // Bind expanded parameter to the remaining unclaimed arguments.
+      // This doesn't look right because if there are other unfulfilled
+      // parameters left, then the recovery for them would be messed up.
+      parameterBindings[expandedParamIdxs.front()].push_back(argIdx);
+      numClaimedArgs ++;
+      claimedArgs[argIdx] = true;
+    }
+    
+    // No arguments left to claim but there are expanded parameters left.
+    if (unclaimedArgs.empty()) {
+      haveUnfulfilledParams = true;
     }
   }
 
@@ -736,7 +789,7 @@ static bool matchCallArgumentsImpl(
           continue;
 
         // If parameter has a default value, we don't really
-        // now if label doesn't match because it's incorrect
+        // know if label doesn't match because it's incorrect
         // or argument belongs to some other parameter, so
         // we just leave this parameter unfulfilled.
         if (paramInfo.hasDefaultArgument(i))
@@ -1448,6 +1501,32 @@ ConstraintSystem::TypeMatchResult constraints::matchCallArguments(
     // Determine the parameter type.
     const auto &param = params[paramIdx];
     auto paramTy = param.getOldType();
+    
+    // Expanded parameter.
+    if (params[paramIdx].isExpanded() && parameterBindings[paramIdx].size() > 1) {
+      SmallVector<Expr *, 4> argExpressions;
+      SmallVector<Identifier, 4> argLabels;
+      
+      for (auto argIdx : parameterBindings[paramIdx]) {
+        auto *argExpr = getArgumentExpr(locator.getAnchor(), argIdx);
+        argExpressions.push_back(argExpr);
+        argLabels.push_back(argsWithLabels[argIdx].getLabel());
+      }
+      
+      if (NominalTypeDecl* nominalType = param.getPlainType()->getAnyNominal()) {
+        auto type = param.getPlainType(); // or nominalType.getDeclaredType ?
+        ASTContext &ctx = type->getASTContext();
+        auto typeExpr = TypeExpr::createImplicit(type, ctx);
+
+        CallExpr *init = CallExpr::createImplicit(ctx,
+                                                  typeExpr,
+                                                  ArrayRef<Expr*>(argExpressions),
+                                                  ArrayRef<Identifier>(argLabels));
+        
+        cs.generateConstraints(init, cs.DC);
+        continue;
+      }
+    }
 
     // Compare each of the bound arguments for this parameter.
     for (auto argIdx : parameterBindings[paramIdx]) {
