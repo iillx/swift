@@ -1915,7 +1915,7 @@ public:
 /// Provide parameter type relevant flags, i.e. variadic, autoclosure, and
 /// escaping.
 class ParameterTypeFlags {
-  enum ParameterFlags : uint8_t {
+  enum ParameterFlags : unsigned {
     None         = 0,
     Variadic     = 1 << 0,
     AutoClosure  = 1 << 1,
@@ -1924,17 +1924,17 @@ class ParameterTypeFlags {
     Ownership    = 7 << OwnershipShift,
     NoDerivative = 1 << 6,
     Isolated     = 1 << 7,
-    Expanded = 1 << 7, // TODO: 1 << 8 this will cause an overflow,  fix
-    NumBits = 8
+    Expanded = 1 << 8,
+    NumBits = 9
   };
   OptionSet<ParameterFlags> value;
-  static_assert(NumBits <= 8*sizeof(OptionSet<ParameterFlags>), "overflowed");
+  static_assert(NumBits <= 9*sizeof(OptionSet<ParameterFlags>), "overflowed");
 
-  ParameterTypeFlags(OptionSet<ParameterFlags, uint8_t> val) : value(val) {}
+  ParameterTypeFlags(OptionSet<ParameterFlags, unsigned> val) : value(val) {}
 
 public:
   ParameterTypeFlags() = default;
-  static ParameterTypeFlags fromRaw(uint8_t raw) {
+  static ParameterTypeFlags fromRaw(unsigned raw) {
     return ParameterTypeFlags(OptionSet<ParameterFlags>(raw));
   }
 
